@@ -118,6 +118,9 @@ class QtConan(ConanFile):
         if self.settings.os == "Android" and self.options.opengl == "desktop":
             raise ConanInvalidConfiguration("OpenGL desktop is not supported on Android. Consider using OpenGL es2")
 
+        if self.options.shared == True:
+            raise ConanInvalidConfiguration("Disable shared build for azure upload tests")
+
         assert QtConan.version == QtConan._submodules['qtbase']['branch']
 
         def _enablemodule(mod):
