@@ -10,6 +10,13 @@ from conans import ConanFile, tools
 from conans.errors import ConanInvalidConfiguration
 from conans.model import Generator
 
+from pathlib import Path
+homedir = Path.home()
+conan_dir = os.path.join(homedir, ".conan")
+conan_bin_dir = os.path.join(conan_dir, "bin")
+if not os.path.exists(conan_bin_dir):
+    os.mkdir(conan_bin_dir)
+
 
 class qt(Generator):
     @property
@@ -38,13 +45,18 @@ class QtConan(ConanFile):
                 res[modulename] = {"branch": str(config.get(section, "branch")), "status": status,
                                    "path": str(config.get(section, "path")), "depends": []}
                 if config.has_option(section, "depends"):
-                    res[modulename]["depends"] = [str(i) for i in config.get(section, "depends").split()]
+                    res[modulename]["depends"] = [
+                        str(i) for i in config.get(section, "depends").split()]
         return res
 
     _submodules = _getsubmodules()
 
     name = "Qt"
-    version = "5.11.2"
+    version = "5.11.2.1"
+    qt_version = "5.11.2"
+    archive_stem = "qt-everywhere-src-%s" % qt_version
+    archive_name = archive_stem + ".tar.xz"
+    qt_src_folder = archive_stem
     description = "Conan.io package for Qt library."
     url = "https://github.com/bincrafters/conan-qt"
     homepage = "https://www.qt.io/"
@@ -101,7 +113,8 @@ class QtConan(ConanFile):
 
             if pack_names:
                 installer = tools.SystemPackageTool()
-                installer.install(" ".join([item + self._system_package_architecture() for item in pack_names]))
+                installer.install(
+                    " ".join([item + self._system_package_architecture() for item in pack_names]))
 
         if tools.os_info.is_windows and self.settings.compiler == "Visual Studio":
             self.build_requires("jom_installer/1.1.2@bincrafters/stable")
@@ -115,9 +128,10 @@ class QtConan(ConanFile):
         if not self.options.GUI:
             self.options.opengl = "no"
         if self.settings.os == "Android" and self.options.opengl == "desktop":
-            raise ConanInvalidConfiguration("OpenGL desktop is not supported on Android. Consider using OpenGL es2")
+            raise ConanInvalidConfiguration(
+                "OpenGL desktop is not supported on Android. Consider using OpenGL es2")
 
-        assert QtConan.version == QtConan._submodules['qtbase']['branch']
+        assert QtConan.qt_version == QtConan._submodules['qtbase']['branch']
 
         def _enablemodule(mod):
             setattr(self.options, mod, True)
@@ -149,21 +163,26 @@ class QtConan(ConanFile):
 
             if pack_names:
                 installer = tools.SystemPackageTool()
-                installer.install(" ".join([item + self._system_package_architecture() for item in pack_names]))
+                installer.install(
+                    " ".join([item + self._system_package_architecture() for item in pack_names]))
 
     def source(self):
         url = "http://download.qt.io/official_releases/qt/{0}/{1}/single/qt-everywhere-src-{1}" \
-            .format(self.version[:self.version.rfind('.')], self.version)
-        if tools.os_info.is_windows:
-            tools.get("%s.zip" % url)
-        elif sys.version_info.major >= 3:
-            tools.get("%s.tar.xz" % url)
-        else:  # python 2 cannot deal with .xz archives
-            self.run("wget -qO- %s.tar.xz | tar -xJ " % url)
-        shutil.move("qt-everywhere-src-%s" % self.version, "qt5")
+            .format(self.qt_version[:self.qt_version.rfind('.')], self.qt_version)
+        local_archive = "/home/kaiyin/Desktop/%s" % self.archive_name
+        from shutil import copyfile
+        copyfile(local_archive, "./%s" % self.archive_name)
+        self.run("tar xf %s" % self.archive_name)
+        # if tools.os_info.is_windows:
+        #     tools.get("%s.zip" % url)
+        # elif sys.version_info.major >= 3:
+        #     tools.get("file:///home/kaiyin/Desktop/%s.tar.xz" % archive_name)
+        # else:  # python 2 cannot deal with .xz archives
+        #     self.run("wget -qO- %s.tar.xz | tar -xJ " % url)
+        # shutil.move(self.archive_stem, self.qt_src_folder)
 
-        for patch in ["cc04651dea4c4678c626cb31b3ec8394426e2b25.diff", "ba22a6731377c8604d13e3855204c03652c0a2e3.diff"]:
-            tools.patch("qt5/qtbase", patch)
+        # for patch in ["cc04651dea4c4678c626cb31b3ec8394426e2b25.diff", "ba22a6731377c8604d13e3855204c03652c0a2e3.diff"]:
+        #     tools.patch("%s/qtbase" % self.qt_src_folder, patch)
 
     def _xplatform(self):
         if self.settings.os == "Linux":
@@ -260,7 +279,7 @@ class QtConan(ConanFile):
             args.append("-release")
         for module in QtConan._submodules:
             if not getattr(self.options, module) \
-                    and os.path.isdir(os.path.join(self.source_folder, 'qt5', QtConan._submodules[module]['path'])):
+                    and os.path.isdir(os.path.join(self.source_folder, self.qt_src_folder, QtConan._submodules[module]['path'])):
                 args.append("-skip " + module)
 
         # openGL
@@ -282,10 +301,12 @@ class QtConan(ConanFile):
                 args += ["-openssl-linked"]
             else:
                 args += ["-openssl"]
-            args += ["-I %s" % i for i in self.deps_cpp_info["OpenSSL"].include_paths]
+            args += ["-I %s" %
+                     i for i in self.deps_cpp_info["OpenSSL"].include_paths]
             libs = self.deps_cpp_info["OpenSSL"].libs
             lib_paths = self.deps_cpp_info["OpenSSL"].lib_paths
-            os.environ["OPENSSL_LIBS"] = " ".join(["-L" + i for i in lib_paths] + ["-l" + i for i in libs])
+            os.environ["OPENSSL_LIBS"] = " ".join(
+                ["-L" + i for i in lib_paths] + ["-l" + i for i in libs])
 
         if self.settings.os == "Linux":
             if self.options.GUI:
@@ -293,7 +314,8 @@ class QtConan(ConanFile):
         elif self.settings.os == "Macos":
             args += ["-no-framework"]
         elif self.settings.os == "Android":
-            args += ["-android-ndk-platform android-%s" % self.settings.os.api_level]
+            args += ["-android-ndk-platform android-%s" %
+                     self.settings.os.api_level]
             args += ["-android-arch %s" % {"armv6": "armeabi",
                                            "armv7": "armeabi-v7a",
                                            "armv8": "arm64-v8a",
@@ -330,7 +352,8 @@ class QtConan(ConanFile):
 
         def _build(make):
             with tools.environment_append({"MAKEFLAGS": "j%d" % tools.cpu_count()}):
-                self.run("%s/qt5/configure %s" % (self.source_folder, " ".join(args)))
+                self.run("%s/%s/configure %s" %
+                         (self.source_folder, self.qt_src_folder, " ".join(args)))
                 self.run(make)
                 self.run("%s install" % make)
 
@@ -348,7 +371,7 @@ class QtConan(ConanFile):
                 # end workaround
                 _build("mingw32-make")
         else:
-            _build("make")
+            _build("""CXXFLAGS="$CXXFLAGS -fPIC" make""")
 
         with open('qtbase/bin/qt.conf', 'w') as f:
             f.write('[Paths]\nPrefix = ..')
@@ -360,3 +383,6 @@ class QtConan(ConanFile):
         if self.settings.os == "Windows":
             self.env_info.path.append(os.path.join(self.package_folder, "bin"))
         self.env_info.CMAKE_PREFIX_PATH.append(self.package_folder)
+
+    def deploy(self):
+        self.copy("*", src="bin", dst=conan_bin_dir)
